@@ -1,0 +1,58 @@
+select 
+    ship.dateshipped as "ShipDate",
+    ship.num as "ShipSOnum",
+--    so.customerpo as "CustPO",
+--    customer.name as "Customer",
+--    count(*) as "CrtCnt",
+    sysuser.username as "ShipProcessor",
+    CASE
+        WHEN sysuser.username in ('srussell','mfreeling','bpaulson','tjump') then 'SEA'
+        WHEN sysuser.username in ('raderholdt') then 'TN'
+        WHEN sysuser.username in ('Kevin') then 'CA LA'       
+        WHEN sysuser.username in ('lblack') then 'SAC'
+        WHEN sysuser.username in ('sleverett') then 'MD'
+        WHEN sysuser.username in ('wallaceandgrommit') then 'CA N'
+      ELSE ''
+    END AS "WH",
+--    shipterms.name as "FrtTerms",
+    concat('ShipVia: ',carrier.name) as "Carrier",
+    concat('Wt: ',cast(sum(shipcarton.freightweight) as decimal (10,2))) as "Weight",
+    concat('Cost $', cast(sum(shipcarton.freightamount) as decimal (17,2))) as "Cost",
+     lineinfo.linesshipped as "LinesShipped",
+    replace(concat('ShipTrack: ',group_concat(shipcarton.trackingnum SEPARATOR '|')), ',', '|') as "ShipTrack",
+    locationgroup.name as "LocGroup"
+
+from
+    ship
+    left join sysuser on ship.shippedby = sysuser.id
+    left join shipcarton on ship.id = shipcarton.shipid
+    left join carrier on shipcarton.carrierid = carrier.id
+    left join so on ship.soid = so.id
+    left join locationgroup on so.locationgroupid = locationgroup.id
+    left join customer on customer.id = so.customerid
+    left join shipterms on shipterms.id = so.shiptermsid
+    left join (select
+                ship.id as "SHIPID",
+                concat('Lines Shipped: ',group_concat(distinct(soitem.solineitem) SEPARATOR '|')) as "LINESSHIPPED"
+        
+                from ship
+                        left join shipitem on shipitem.shipid = ship.id 
+                        left join soitem on soitem.id = shipitem.soitemid
+                        left join sysuser on ship.shippedby = sysuser.id
+                        left join so on ship.soid = so.id
+                where 
+                        ship.statusid = '30'
+                        and datediff(soitem.datelastfulfillment, current_date) <= 365
+                group by 1) as LINEINFO on lineinfo.shipid = ship.id
+    
+where 
+     ship.statusid = '30'
+     and shipcarton.ordertypeid = 20
+     and datediff(ship.dateshipped, current_date) <= 1
+     and sysuser.username not in ('bturnquist','SMead')
+ --    and so.num = '41209'
+
+group by 1,2,3,4,5,8
+-- group by 1,2,3,4,6,7,8,9,12
+
+order by 1 desc
